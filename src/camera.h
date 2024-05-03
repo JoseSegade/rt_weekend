@@ -7,18 +7,19 @@
 
 class camera {
  public:
-  double aspect_ratio = 1.0;
-  int image_width = 100;
-  int samples_per_pixel = 10;
-  int max_depth = 10;
+  double aspect_ratio      = 1.0;
+  int    image_width       = 100;
+  int    samples_per_pixel = 10;
+  int    max_depth         = 10;
+  color  background        = color(0.0, 0.0, 0.0);
 
-  double vfov = 90.0;
-  point3 lookfrom = point3(0.0, 0.0, 0.0);
-  point3 lookat = point3(0.0, 0.0, -1.0);
-  vec3 vup = vec3(0.0, 1.0, 0.0);
+  double vfov              = 90.0;
+  point3 lookfrom          = point3(0.0, 0.0, 0.0);
+  point3 lookat            = point3(0.0, 0.0, -1.0);
+  vec3   vup               = vec3(0.0, 1.0, 0.0);
 
-  double defocus_angle = 0.0;
-  double focus_dist = 10;
+  double defocus_angle     = 0.0;
+  double focus_dist        = 10.0;
 
   void render(const hittable& world) {
     initialize();
@@ -41,17 +42,17 @@ class camera {
   }
 
  private:
-  int image_height;
+  int    image_height;
   double pixel_samples_scale;
   point3 center;
   point3 pixel00_loc;
-  vec3 pixel_delta_u;
-  vec3 pixel_delta_v;
-  vec3 u;
-  vec3 v;
-  vec3 w;
-  vec3 defocus_disk_u;
-  vec3 defocus_disk_v;
+  vec3   pixel_delta_u;
+  vec3   pixel_delta_v;
+  vec3   u;
+  vec3   v;
+  vec3   w;
+  vec3   defocus_disk_u;
+  vec3   defocus_disk_v;
 
   void initialize() {
     image_height = static_cast<int>(image_width / aspect_ratio);
@@ -97,8 +98,9 @@ class camera {
     const point3 ray_origin = (defocus_angle <= 0.0) ?
       center : defocus_disk_sample();
     const vec3 ray_direction = pixel_sample - ray_origin;
+    const double ray_time = random_double();
 
-    return ray(ray_origin, ray_direction);
+    return ray(ray_origin, ray_direction, ray_time);
   }
 
   vec3 sample_square() const {
@@ -114,19 +116,23 @@ class camera {
     if (depth <= 0) {
       return color(0.0, 0.0, 0.0);
     }
+
     hit_record rec;
-    if (world.hit(r, interval(0.001, infinity), rec)) {
-      ray scattered;
-      color attenuation;
-      if (rec.mat->scatter(r, rec, attenuation, scattered)) {
-        return attenuation * ray_color(scattered, depth - 1, world);
-      }
-      return color(0.0, 0.0, 0.0);
+
+    if (!world.hit(r, interval(0.001, infinity), rec)) {
+      return background;
     }
-    
-    const vec3 unit_direction = unit_vector(r.direction());
-    const double a = 0.5 * (unit_direction.y() + 1.0);
-    return (1.0 - a) * color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
+
+    ray scattered;
+    color attenuation;
+    const color color_from_emission = rec.mat->emitted(rec.u, rec.v, rec.p);
+
+    if (!rec.mat->scatter(r, rec, attenuation, scattered)) {
+      return color_from_emission;
+    }
+
+    const color color_form_scatter = attenuation * ray_color(scattered, depth - 1, world);
+    return color_from_emission + color_form_scatter;
   }
 
 };
